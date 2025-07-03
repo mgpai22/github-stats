@@ -142,6 +142,10 @@ class Queries(object):
       }}
       nodes {{
         nameWithOwner
+        primaryLanguage {{
+          name
+          color
+        }}
         stargazers {{
           totalCount
         }}
@@ -178,6 +182,10 @@ class Queries(object):
       }}
       nodes {{
         nameWithOwner
+        primaryLanguage {{
+          name
+          color
+        }}
         stargazers {{
           totalCount
         }}
@@ -347,20 +355,19 @@ Languages:
                 self._stargazers += repo.get("stargazers").get("totalCount", 0)
                 self._forks += repo.get("forkCount", 0)
 
-                for lang in repo.get("languages", {}).get("edges", []):
-                    name = lang.get("node", {}).get("name", "Other")
-                    languages = await self.languages
-                    if name.lower() in exclude_langs_lower:
-                        continue
-                    if name in languages:
-                        languages[name]["size"] += lang.get("size", 0)
-                        languages[name]["occurrences"] += 1
-                    else:
-                        languages[name] = {
-                            "size": lang.get("size", 0),
-                            "occurrences": 1,
-                            "color": lang.get("node", {}).get("color"),
-                        }
+                # Count primary language for this repository
+                primary_lang = repo.get("primaryLanguage")
+                if primary_lang is not None:
+                    lang_name = primary_lang.get("name", "Other")
+                    if lang_name.lower() not in exclude_langs_lower:
+                        languages = await self.languages
+                        if lang_name in languages:
+                            languages[lang_name]["occurrences"] += 1
+                        else:
+                            languages[lang_name] = {
+                                "occurrences": 1,
+                                "color": primary_lang.get("color"),
+                            }
 
             if owned_repos.get("pageInfo", {}).get(
                 "hasNextPage", False
@@ -376,9 +383,9 @@ Languages:
 
         # TODO: Improve languages to scale by number of contributions to
         #       specific filetypes
-        langs_total = sum([v.get("size", 0) for v in self._languages.values()])
+        repos_total = sum([v.get("occurrences", 0) for v in self._languages.values()])
         for k, v in self._languages.items():
-            v["prop"] = 100 * (v.get("size", 0) / langs_total)
+            v["prop"] = 100 * (v.get("occurrences", 0) / repos_total) if repos_total > 0 else 0
 
     @property
     async def name(self) -> str:
